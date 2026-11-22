@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>代理体检台 · 速度 + 纯净度</title>
+<link rel="icon" href="/favicon.ico" />
+<link rel="apple-touch-icon" href="/favicon.ico" />
+<style>
+  :root{
+    --bg:#0a0e13; --panel:#111823; --panel2:#0d131b; --line:#1e2a38;
+    --txt:#e6edf5; --dim:#7d8ea3; --ok:#35e0a1; --warn:#ffb020; --bad:#ff5f5f; --accent:#4ea8ff;
+    --mono:"Cascadia Mono","Consolas",monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 15% -10%,#132234 0%,var(--bg) 55%);color:var(--txt);
+       font:14px/1.6 "Microsoft YaHei UI","PingFang SC",system-ui,sans-serif;padding:22px 22px 60px}
+  h1{font-size:20px;margin:0 0 2px;letter-spacing:.5px}
+  .sub{color:var(--dim);font-size:12.5px;margin-bottom:16px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .row>*{min-width:0}
+  .row>div{flex:1 1 150px;max-width:340px}
+  .row>button{flex:0 0 auto}
+  label{font-size:12px;color:var(--dim);display:block;margin-bottom:4px}
+  input,select{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:8px;
+       padding:8px 10px;font:13px var(--mono);outline:none;width:100%;max-width:100%}
+  input:focus,select:focus{border-color:var(--accent)}
+  #proxy{width:100%}
+  button{background:linear-gradient(180deg,#1d2a3a,#16202c);border:1px solid #2a3b50;color:var(--txt);
+       padding:9px 16px;border-radius:8px;cursor:pointer;font-size:13.5px;transition:.15s}
+  button:hover{border-color:var(--accent);transform:translateY(-1px)}
+  button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  button.primary{background:linear-gradient(180deg,#1c7a58,#136b4b);border-color:#25a97a}
+  button.primary:hover{border-color:var(--ok)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px;margin-bottom:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden}
+  .card .k{font-size:12px;color:var(--dim);margin-bottom:6px}
+  .card .v{font:600 26px/1.2 var(--mono)}
+  .card .v small{font-size:13px;color:var(--dim);font-weight:400}
+  .card .m{font-size:12px;color:var(--dim);margin-top:6px;word-break:break-all}
+  .badge{position:absolute;top:12px;right:14px;font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid}
+  .g{color:var(--ok);border-color:#1e6b52;background:#0f2a22}
+  .w{color:var(--warn);border-color:#6b521e;background:#2a2210}
+  .b{color:var(--bad);border-color:#6b2424;background:#2a1212}
+  .n{color:var(--dim);border-color:var(--line);background:#141c26}
+  #chart{width:100%;height:150px;display:block;border-radius:8px;background:var(--panel2);border:1px solid var(--line)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--dim);font-weight:400;font-size:11.5px}
+  td.num{font-family:var(--mono)}
+  .flexline{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}
+  .flexline h2{font-size:14px;margin:0;font-weight:600}
+  #log{font:12px/1.7 var(--mono);color:var(--dim);max-height:130px;overflow:auto;white-space:pre-wrap}
+  .ded{display:flex;gap:10px;padding:6px 0;border-bottom:1px dashed #1a2735;font-size:12.5px}
+  .ded:last-child{border:none}
+  .ded .d{font-family:var(--mono);min-width:44px;text-align:right}
+  .neg{color:var(--bad)} .zero{color:var(--dim)}
+  .pos{color:var(--ok)} .warn{color:var(--warn)}
+  details summary{cursor:pointer;color:var(--dim);font-size:12px}
+  pre{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;
+      font:11.5px/1.6 var(--mono);color:#9fb2c8;max-height:260px}
+  .hint{font-size:12px;color:var(--dim)}
+  .cmp{font-family:var(--mono);font-size:12.5px}
+  .tag{display:inline-block;padding:1px 7px;border-radius:5px;font-size:11px;background:#182636;color:#8fb6dd;margin-right:6px}
+  @media (max-width:640px){body{padding:14px 12px 40px}.card .v{font-size:22px}#proxy{width:100%}}
+  #btnQuit{position:fixed;top:10px;right:12px;z-index:9;background:transparent;border:1px solid transparent;
+           color:#4a5a6d;font-size:11.5px;padding:4px 9px;border-radius:6px;cursor:pointer}
+  #btnQuit:hover{color:var(--bad);border-color:#3a2126;background:#1a1013}
+</style>
+</head>
+<body>
+
+<h1>代理体检台</h1>
+<div class="sub">一次跑完：出口 IP → IP 纯净度（机房 / 代理 / 黑名单）→ 真实下载速度，并和直连做对比</div>
+<button id="btnQuit" title="停掉本地测速服务并关闭窗口">✕ 退出</button>
+
+<div class="panel">
+  <div class="row">
+    <div>
+      <label>代理地址</label>
+      <input id="proxy" value="http://127.0.0.1:7890" placeholder="http://127.0.0.1:7890" />
+    </div>
+    <div>
+      <label>下载量</label>
+      <select id="mb">
+        <option value="10">10 MB</option>
+        <option value="20" selected>20 MB</option>
+        <option value="50">50 MB</option>
+        <option value="100">100 MB</option>
+      </select>
+    </div>
+    <div>
+      <label>测速点</label>
+      <select id="target">
+        <option value="" selected>自动（直连测国内、代理测海外）</option>
+        <optgroup label="海外点 · 量代理带宽">
+          <option value="cloudflare">Cloudflare（最快，会限流）</option>
+          <option value="vultr">Vultr 新加坡（最稳）</option>
+          <option value="ovh">OVH 法国</option>
+        </optgroup>
+        <optgroup label="国内点 · 量你家带宽">
+          <option value="huawei">华为云镜像（最快）</option>
+          <option value="ustc">中科大镜像</option>
+        </optgroup>
+      </select>
+    </div>
+    <div>
+      <label>并发连接</label>
+      <select id="conns">
+        <option value="1">1 路（单线程）</option>
+        <option value="4" selected>4 路</option>
+        <option value="8">8 路</option>
+        <option value="16">16 路</option>
+      </select>
+    </div>
+    <button class="primary" id="btnProxy">测代理</button>
+    <button id="btnDirect">测家宽</button>
+    <button id="btnBoth">完整对比</button>
+  </div>
+  <div class="hint" style="margin-top:10px">
+    关键点：<b>国内直连海外站本身就被限速</b>（Cloudflare 常年 1~3 Mbps），拿它当真相反而是错的。所以「测家宽」走国内镜像量出你的真实上限，
+    「测代理」走海外点量出代理实力，<b>完整对比</b> 把三个数摆一起给结论。慢线路最多采样 8 秒就出结果，不会卡住。
+    <br />
+    <b>并发连接</b>是关键开关：机场常把单条 TCP 限在 2 Mbps 上下，<b>1 路和 8 路差 10 倍是常态</b>——单文件下载（浏览器直接下）走的是单条连接，
+    所以「1 路慢、8 路快」= 你没被坑，只是得用 IDM / aria2 这种多线程下载器。
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="k">出口 IP</div>
+    <div class="v" id="vIp">—</div>
+    <div class="m" id="mIp">还没测</div>
+  </div>
+  <div class="card">
+    <div class="k">IP 纯净度</div>
+    <div class="v" id="vScore">—</div>
+    <div class="m" id="mScore">机房 / 代理 / 黑名单综合</div>
+    <span class="badge n" id="bScore">待测</span>
+  </div>
+  <div class="card">
+    <div class="k">下载速度</div>
+    <div class="v" id="vSpeed">—<small> Mbps</small></div>
+    <div class="m" id="mSpeed">实测吞吐</div>
+    <div class="m" id="hintSpeed" style="color:var(--dim)"></div>
+  </div>
+  <div class="card">
+    <div class="k">首字节延迟</div>
+    <div class="v" id="vTtfb">—<small> ms</small></div>
+    <div class="m" id="mTtfb">含代理握手</div>
+  </div>
+</div>
+
+<div class="panel" id="verdictPanel" style="display:none">
+  <div class="flexline"><h2>结论</h2><span class="hint">家宽上限 → 代理实测</span></div>
+  <div id="verdict" style="font-size:13.5px;line-height:2"></div>
+</div>
+
+<div class="panel">
+  <div class="flexline"><h2>GitHub 实测</h2><span class="hint">真去下 release 里的程序，不是测速点</span></div>
+  <div class="row" style="margin-bottom:12px">
+    <button id="btnGhDirect">直连测</button>
+    <button class="primary" id="btnGhProxy">走代理测</button>
+    <button id="btnGhBoth">直连 vs 代理</button>
+  </div>
+  <div id="ghBox"><span class="hint">点一下，会真下 8 MB 的 yt-dlp.exe，量出「打开 github 多久 + 下载多快 + 下个安装包要几分钟」。</span></div>
+</div>
+
+<div class="panel">
+  <div class="flexline"><h2>实时速度</h2><span class="hint" id="chartHint">等待测试</span></div>
+  <canvas id="chart"></canvas>
+</div>
+
+<div class="panel">
+  <div class="flexline"><h2>纯净度明细</h2><span class="hint" id="srcHint"></span></div>
+  <div id="deds" class="hint">还没有数据</div>
+</div>
+
+<div class="panel">
+  <div class="flexline"><h2>历史对比</h2><button id="btnClear" style="padding:4px 10px;font-size:12px">清空</button></div>
+  <table>
+    <thead><tr><th>时间</th><th>线路</th><th>出口 IP</th><th>地区</th><th>纯净度</th><th>下载</th><th>延迟</th></tr></thead>
+    <tbody id="hist"><tr><td colspan="7" class="hint">—</td></tr></tbody>
+  </table>
+  <div class="cmp" id="cmp" style="margin-top:10px"></div>
+</div>
+
+<div class="panel">
+  <div class="flexline"><h2>运行日志</h2></div>
+  <div id="log"></div>
+  <details style="margin-top:10px"><summary>原始返回数据</summary><pre id="raw">—</pre></details>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const logEl = $('log');
+let sawAnySpeed = false;
+let current = null;      // 当前 EventSource
+let history = [];
+
+function log(msg){
+  const t = new Date().toLocaleTimeString('zh-CN', {hour12:false});
+  logEl.textContent += `[${t}] ${msg}\n`;
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function setBusy(b){
+  for(const id of ['btnProxy','btnDirect','btnBoth','btnGhDirect','btnGhProxy','btnGhBoth']){
+    const el = $(id); if(el) el.disabled = b;
+  }
+}
+function fmtMbps(v){ return v >= 100 ? Math.round(v) : (Math.round(v*10)/10); }
+function cls(score){ return score >= 85 ? 'g' : score >= 65 ? 'w' : 'b'; }
+
+/* ---------- 曲线 ---------- */
+const cv = $('chart'), cx = cv.getContext('2d');
+let series = [];
+function drawChart(){
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if(cv.width !== w*dpr || cv.height !== h*dpr){ cv.width = w*dpr; cv.height = h*dpr; }
+  cx.setTransform(dpr,0,0,dpr,0,0);
+  cx.clearRect(0,0,w,h);
+  // 网格
+  cx.strokeStyle = '#182533'; cx.lineWidth = 1;
+  for(let i=1;i<4;i++){ const y = h*i/4; cx.beginPath(); cx.moveTo(0,y); cx.lineTo(w,y); cx.stroke(); }
+  if(series.length < 2) return;
+  const max = Math.max(...series, 1) * 1.15;
+  const px = (i) => (i/(series.length-1)) * (w-2) + 1;
+  const py = (v) => h - (v/max) * (h-8) - 4;
+
+  const g = cx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'rgba(53,224,161,.35)'); g.addColorStop(1,'rgba(53,224,161,0)');
+  cx.beginPath(); cx.moveTo(px(0), h);
+  series.forEach((v,i)=>cx.lineTo(px(i), py(v)));
+  cx.lineTo(px(series.length-1), h); cx.closePath();
+  cx.fillStyle = g; cx.fill();
+
+  cx.beginPath();
+  series.forEach((v,i)=> i? cx.lineTo(px(i),py(v)) : cx.moveTo(px(i),py(v)));
+  cx.strokeStyle = '#35e0a1'; cx.lineWidth = 2; cx.stroke();
+
+  cx.fillStyle = '#7d8ea3'; cx.font = '11px Consolas';
+  cx.fillText(fmtMbps(max) + ' Mbps', 8, 14);
+}
+
+/* ---------- 单次测试 ---------- */
+function runOnce(useProxy, opts = {}){
+  const {pushHistory=true, target=null, skipPurity=false, skipIp=false, sec=8, mb:mbOverride=null} = opts;
+  return new Promise((resolve, reject) => {
+    if(current) current.close();
+    series = []; drawChart();
+    const p = useProxy ? $('proxy').value.trim() : '';
+    const mb = mbOverride || $('mb').value;
+    const tg = target !== null ? target : $('target').value;
+    const qs = new URLSearchParams({mb, proxy:p, sec:String(sec), conns: $('conns').value});
+    if(tg) qs.set('target', tg);
+    if(skipPurity) qs.set('skipPurity','1');
+    if(skipIp) qs.set('skipIp','1');
+    log(useProxy ? `开始：走代理 ${p || '（空，等于直连）'}` : '开始：直连');
+
+    const es = new EventSource(`/api/run?${qs}`);
+    current = es;
+    let result = null;
+
+    es.onmessage = (ev) => {
+      const d = JSON.parse(ev.data);
+      if(d.type === 'stage') log(d.msg);
+      else if(d.type === 'ip'){
+        $('vIp').textContent = d.ip;
+        $('mIp').textContent = [d.country, d.city || d.region, d.asn].filter(Boolean).join(' · ');
+        log(`出口 IP：${d.ip} ${d.country || ''} ${d.city || ''} 落地机房 ${d.colo || '?'}${d.warp && d.warp!=='off' ? ' WARP='+d.warp : ''}`);
+      }
+      else if(d.type === 'purity'){
+        const pu = d.purity;
+        $('vScore').textContent = pu.score;
+        $('mScore').textContent = `${pu.grade} · ${pu.flags.hosting === true ? '机房IP' : pu.flags.proxy === true ? '被标代理' : '未见异常'}`;
+        const b = $('bScore'); b.textContent = pu.grade; b.className = 'badge ' + cls(pu.score);
+        $('deds').innerHTML = pu.deductions.map(x => {
+          const c = x.delta < 0 ? 'neg' : 'zero';
+          const dt = x.delta === 0 ? '·' : (x.delta > 0 ? '+' : '') + x.delta;
+          return `<div class="ded"><span class="d ${c}">${dt}</span><span><b>${x.name}</b> — ${x.detail}</span></div>`;
+        }).join('') || '无';
+        $('srcHint').textContent = `落地 ${pu.colo || '?'} / 归属 ${pu.geoCountry || '?'}${pu.warp && pu.warp!=='off' ? ' / WARP:'+pu.warp : ''}${pu.lite ? ' / 快速模式未查黑名单' : ''}`;
+        $('raw').textContent = JSON.stringify(d.raw, null, 2);
+        if(d.errors && d.errors.length) log('部分数据源失败：' + d.errors.join('；'));
+        log(`纯净度 ${pu.score} 分（${pu.grade}）`);
+      }
+      else if(d.type === 'progress'){
+        series.push(d.mbps);
+        if(series.length > 400) series = series.slice(-400);
+        drawChart();
+        $('vSpeed').innerHTML = fmtMbps(d.mbps) + '<small> Mbps</small>';
+        $('mSpeed').textContent = `已下 ${d.gotMB} MB${d.totalMB ? ' / '+d.totalMB+' MB' : ''} · ${d.elapsed}s`;
+        $('chartHint').textContent = `下载中 ${d.gotMB} MB / ${d.elapsed}s`;
+        sawAnySpeed = true;
+      }
+      else if(d.type === 'done'){
+        result = d.result;
+        es.close(); current = null;
+        const s = result.speed;
+        if(s){
+          $('vSpeed').innerHTML = fmtMbps(s.avgMbps) + '<small> Mbps</small>';
+          const note = s.partial ? `（${s.maxSec}s 采样，线路慢没下完）` : (s.kind==='cn' ? '（国内源，这就是你家带宽）' : '');
+          const note2 = s.conns > 1 ? `（${s.conns} 路并发合计）` : '';
+          $('mSpeed').textContent = `${(s.avgMbps/8).toFixed(2)} MB/s · 峰值 ${fmtMbps(s.peakMbps)} Mbps · ${(s.bytes/1048576).toFixed(1)} MB / ${s.secs}s ${note}${note2}`;
+          $('hintSpeed').textContent = `${s.conns > 1 ? s.conns + ' 路合计 · ' : '单线程 · '}够看 ${Math.max(1,Math.round(s.avgMbps/5))} 路 1080p / ${(s.avgMbps/20).toFixed(1)} 路 4K`;
+          $('vTtfb').innerHTML = s.ttfb + '<small> ms</small>';
+          $('mTtfb').textContent = s.targetName || (s.target === 'custom' ? '自定义地址' : s.target);
+          $('chartHint').textContent = `完成 · 平均 ${fmtMbps(s.avgMbps)} Mbps · 峰值 ${fmtMbps(s.peakMbps)} Mbps ${note}`;
+          log(`测速完成（${s.targetName||s.target}）：平均 ${fmtMbps(s.avgMbps)} Mbps，峰值 ${fmtMbps(s.peakMbps)} Mbps，首字节 ${s.ttfb}ms ${note}`);
+        }
+        if(pushHistory) addHistory(result);
+        resolve(result);
+      }
+      else if(d.type === 'error'){
+        es.close(); current = null;
+        log('失败：' + d.message);
+        reject(new Error(d.message));
+      }
+    };
+    es.onerror = () => {
+      es.close(); current = null;
+      if(result) return;
+      log('连接中断（服务是否还在运行？）');
+      reject(new Error('连接中断'));
+    };
+  });
+}
+
+function addHistory(r){
+  history.unshift(r);
+  history = history.slice(0, 8);
+  $('hist').innerHTML = history.map(h => {
+    const t = new Date(h.meta.startedAt).toLocaleTimeString('zh-CN',{hour12:false});
+    const sp = h.speed ? fmtMbps(h.speed.avgMbps)+' Mbps' : '—';
+    const tt = h.speed ? h.speed.ttfb+' ms' : '—';
+    return `<tr><td class="num">${t}</td><td>${h.meta.proxy}</td><td class="num">${h.ip || '—'}</td>
+      <td>${(h.ipDetail && h.ipDetail.country) || ''} ${(h.ipDetail && h.ipDetail.city) || ''}</td>
+      <td class="num">${h.purity ? h.purity.score : '—'}</td><td class="num">${sp}</td><td class="num">${tt}</td></tr>`;
+  }).join('');
+}
+
+async function runProxy(){
+  setBusy(true);
+  const sel = $('target').value;
+  try { await runOnce(true, {target: (sel==='ovh'||sel==='vultr'||sel==='cloudflare') ? sel : 'vultr'}); } catch(e){} finally { setBusy(false); }
+}
+async function runDirect(){
+  setBusy(true);
+  const sel = $('target').value;
+  const cn = Math.max(Number($('mb').value) || 20, 50); // 国内太快，样本给大一点才准
+  try { await runOnce(false, {target: (sel==='huawei'||sel==='ustc') ? sel : 'huawei', mb: cn, sec: 6}); } catch(e){} finally { setBusy(false); }
+}
+
+async function runBoth(){
+  setBusy(true);
+  $('cmp').innerHTML = '';
+  $('verdictPanel').style.display = 'none';
+  try{
+    log('—— ① 你家带宽上限：国内镜像 · 直连 ——');
+    const home = await runOnce(false, {target:'huawei', skipPurity:true, pushHistory:false, sec:6, mb: Math.max(Number($('mb').value)||20, 50)}).catch(()=>null);
+    log('—— ② 不开代理：Cloudflare · 直连 ——');
+    const abroad = await runOnce(false, {target:'cloudflare', skipIp:true, pushHistory:false, sec:6}).catch(()=>null);
+    log('—— ③ 代理实测：Cloudflare · 走代理 ——');
+    const prox = await runOnce(true, {target:'cloudflare', pushHistory:false, sec:8}).catch(()=>null);
+    verdict(home, abroad, prox);
+    if(prox) addHistory(prox);
+    log('对比完成，结论见下方');
+  } finally { setBusy(false); }
+}
+
+function verdict(home, abroad, prox){
+  const h = home && home.speed ? home.speed.avgMbps : 0;
+  const a = abroad && abroad.speed ? abroad.speed.avgMbps : 0;
+  const p = prox && prox.speed ? prox.speed.avgMbps : 0;
+  $('verdictPanel').style.display = '';
+
+  if(!p){
+    $('verdict').innerHTML = '<span class="tag">对比</span> 代理那一步没跑成功 —— 先确认 Clash / V2RayN 开着，端口对（默认 7890）。';
+    return;
+  }
+  const ratio = h > 0 ? p / h : null;
+  let judge, tone;
+  if(ratio === null){ judge = '没拿到家宽基准，只能看代理绝对值。'; tone = ''; }
+  else if(ratio >= 0.8){ judge = `代理吃掉家宽的 <b>${(ratio*100).toFixed(0)}%</b>，基本跑满了 —— 瓶颈在你家宽带本身，不怪代理。`; tone = 'pos'; }
+  else if(ratio >= 0.4){ judge = `代理是家宽的 <b>${(ratio*100).toFixed(0)}%</b>，中等损耗，日常刷网页 / 4K 够用。`; tone = 'warn'; }
+  else { judge = `代理只有家宽的 <b>${(ratio*100).toFixed(0)}%</b> —— 代理/机场 是瓶颈，换节点或换机场。`; tone = 'neg'; }
+
+  const lift = a > 0 ? (p / a) : null;
+  const liftTxt = lift === null ? '' :
+    lift >= 2 ? `不开代理只有 <b>${fmtMbps(a)}</b> Mbps，代理提速 <b>${lift.toFixed(1)} 倍</b>。`
+              : `不开代理 ${fmtMbps(a)} Mbps，代理没比直连快多少（${lift.toFixed(1)} 倍）—— 这条线路对你用处不大。`;
+
+  $('verdict').innerHTML = `
+    <div><span class="tag">家宽上限</span> <b>${h?fmtMbps(h):'—'}</b> Mbps <span class="hint">国内镜像直连，天花板</span></div>
+    <div><span class="tag">海外直连</span> <b>${a?fmtMbps(a):'—'}</b> Mbps <span class="hint">Cloudflare 不经代理，通常很惨</span></div>
+    <div><span class="tag">代理实测</span> <b>${fmtMbps(p)}</b> Mbps <span class="hint">= ${(p/8).toFixed(2)} MB/s，够 ${(p/20).toFixed(1)} 路 4K，纯净度 ${prox.purity ? prox.purity.score + ' 分' : '未测'}</span></div>
+    <div style="margin-top:8px" class="${tone}">${judge}</div>
+    ${liftTxt ? `<div>${liftTxt}</div>` : ''}
+  `;
+  $('cmp').innerHTML = `<span class="tag">对比</span> 家宽 ${h?fmtMbps(h):'—'} → 代理 <b>${fmtMbps(p)}</b> Mbps${ratio!==null?`（${(ratio*100).toFixed(0)}%）`:''}`;
+}
+
+/* ---------- GitHub 实测 ---------- */
+let ghResults = [];
+
+function eta(sec){
+  if(sec == null) return '—';
+  if(sec < 60) return sec + ' 秒';
+  if(sec < 3600) return (sec/60).toFixed(1) + ' 分钟';
+  return (sec/3600).toFixed(1) + ' 小时';
+}
+
+function ghRun(useProxy){
+  return new Promise((resolve) => {
+    const p = useProxy ? $('proxy').value.trim() : '';
+    const qs = new URLSearchParams({proxy: p, mb: '8', sec: '6', conns: $('conns').value});
+    const tag = useProxy ? '代理' : '直连';
+    const es = new EventSource('/api/github?' + qs);
+    log(`GitHub · 开始测 ${tag}`);
+    es.onmessage = (ev) => {
+      const d = JSON.parse(ev.data);
+      if(d.type === 'stage') log('GitHub · ' + d.msg);
+      else if(d.type === 'progress'){
+        series.push(d.mbps);
+        if(series.length > 400) series = series.slice(-400);
+        drawChart();
+        $('chartHint').textContent = `GitHub 下载中 ${d.gotMB} MB / ${d.elapsed}s`;
+      }
+      else if(d.type === 'gh-web'){
+        log(`GitHub 网页通道 ${d.web.ok ? '通 · ' + d.web.ttfb + ' ms' : '不通：' + d.web.error}`);
+      }
+      else if(d.type === 'done'){ es.close(); resolve(d.result); }
+      else if(d.type === 'error'){ es.close(); log('GitHub 测失败：' + d.message); resolve({route: tag, error: d.message}); }
+    };
+    es.onerror = () => { es.close(); resolve({route: tag, error: '连接中断'}); };
+  });
+}
+
+function ghRender(){
+  if(!ghResults.length){ $('ghBox').innerHTML = ''; return; }
+  const rows = ghResults.map(r => {
+    const d = r.download || {};
+    if(r.error || !d.ok){
+      return `<tr><td><b>${r.route}</b></td><td colspan="5" class="neg">失败：${d.error || r.error || '未知'}</td></tr>`;
+    }
+    const w = r.web || {};
+    return `<tr>
+      <td><b>${r.route}</b></td>
+      <td class="num">${w.ok ? w.ttfb + ' ms' : '<span class="neg">打不开</span>'}</td>
+      <td class="num"><b style="font-size:15px">${d.mbPerSec}</b> MB/s<div class="hint" style="font-size:11px">${fmtMbps(d.mbps)} Mbps</div></td>
+      <td class="num">${eta(d.etaAssetSec)}<div class="hint" style="font-size:11px">${d.totalSize ? 'yt-dlp.exe ' + (d.totalSize/1048576).toFixed(1) + ' MB' : ''}</div></td>
+      <td class="num">${eta(d.eta70Sec)}<div class="hint" style="font-size:11px">Git for Windows 70 MB</div></td>
+      <td class="${r.verdict.cls}">${r.verdict.label}</td>
+    </tr>`;
+  }).join('');
+
+  const ok = ghResults.filter(r => r.download && r.download.ok);
+  let cmp = '';
+  if(ok.length === 2){
+    const a = ok.find(r => !r.proxy), b = ok.find(r => r.proxy);
+    if(a && b){
+      const k = b.download.mbps / a.download.mbps;
+      cmp = k >= 1.2
+        ? `<div class="pos" style="margin-top:10px">代理快 <b>${k.toFixed(1)} 倍</b>：GitHub 直连 ${eta(a.download.eta70Sec)}，走代理 ${eta(b.download.eta70Sec)}。</div>`
+        : `<div class="warn" style="margin-top:10px">代理只快 <b>${k.toFixed(1)} 倍</b>，几乎没区别 —— 这个时间段 Git 上这条线路帮不上忙。</div>`;
+    }
+  }
+
+  $('ghBox').innerHTML = `<table>
+    <thead><tr><th>线路</th><th>打开 github.com</th><th>下载速度</th><th>下这个文件</th><th>下 Git 安装包</th><th>评价</th></tr></thead>
+    <tbody>${rows}</tbody></table>${cmp}`;
+}
+
+async function ghOne(useProxy){
+  setBusy(true);
+  try{
+    const r = await ghRun(useProxy);
+    if(r){
+      ghResults = ghResults.filter(x => x.route !== r.route);
+      ghResults.push(r);
+      if(ghResults.length > 2) ghResults = ghResults.slice(-2);
+      ghRender();
+    }
+  } finally { setBusy(false); }
+}
+
+async function ghBoth(){
+  setBusy(true);
+  ghResults = [];
+  $('ghBox').innerHTML = '<span class="hint">正在测直连…</span>';
+  try{
+    const a = await ghRun(false);
+    if(a){ ghResults.push(a); ghRender(); }
+    const b = await ghRun(true);
+    if(b){ ghResults.push(b); ghRender(); }
+  } finally { setBusy(false); }
+}
+
+$('btnProxy').onclick = runProxy;
+$('btnGhDirect').onclick = () => ghOne(false);
+$('btnGhProxy').onclick = () => ghOne(true);
+$('btnGhBoth').onclick = ghBoth;
+$('btnDirect').onclick = runDirect;
+$('btnBoth').onclick = runBoth;
+$('btnClear').onclick = () => { history = []; $('hist').innerHTML = '<tr><td colspan="7" class="hint">—</td></tr>'; $('cmp').innerHTML=''; };
+$('btnQuit').onclick = async () => {
+  $('btnQuit').disabled = true;
+  $('btnQuit').textContent = '正在退出…';
+  try { await fetch('/api/quit'); } catch(e) {}
+  try { window.close(); } catch(e) {}
+  setTimeout(() => {
+    document.body.innerHTML = '<div style="padding:60px 24px;text-align:center;color:#7d8ea3;font:14px/1.9 system-ui">'
+      + '测速服务已停止，这个窗口可以直接关掉了。<br><span style="font-size:12px;color:#4a5a6d">'
+      + '下次双击桌面「代理测速台」图标即可重新打开。</span></div>';
+  }, 600);
+};
+window.addEventListener('resize', drawChart);
+drawChart();
+
+// 回车直接测
+$('proxy').addEventListener('keydown', e => { if(e.key === 'Enter') runProxy(); });
+log('就绪。默认测 http://127.0.0.1:7890（Clash / V2RayN 的混合端口）。');
+</script>
+</body>
+</html>
